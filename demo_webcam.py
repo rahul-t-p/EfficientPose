@@ -1,48 +1,65 @@
 from tensorflow import lite
 import numpy as np
 import cv2
+import argparse
 
-MODEL_PATH = "models/model_full_integer_quant.tflite"
-INPUT_SHAPE = (256, 256)
+MODEL_DIR = "models"
+MODEL_NAME = "model_full_integer_quant.tflite"
+INPUT_SHAPE_DICT = {"RT_LITE": (224, 224), "I_LITE": (256, 256), "II_LITE": (368, 368)}
+CONFIDENCE_DICT = {"RT_LITE": -80, "I_LITE": 0, "II_LITE": -50}
 KEY_POINTS = 16
-confidence = 0
-
-# Load model
-model = lite.Interpreter(model_path=MODEL_PATH)
-model.allocate_tensors()
-input_details = model.get_input_details()
-output_details = model.get_output_details()
 
 # Initialize the webcam
 cap = cv2.VideoCapture(0)
 
-while True:
-    # Capture a frame from the webcam
-    ret, cap_frame = cap.read()
-    cap_frame = cv2.resize(cap_frame, INPUT_SHAPE)
-    batch = np.expand_dims(cap_frame, axis=0).astype(np.int8)
+# Run inference
+def run_inference(model_version: str):
+    # Load model
+    model = lite.Interpreter(model_path="{}/{}/{}".format(MODEL_DIR, model_version, MODEL_NAME))
+    model.allocate_tensors()
+    input_details = model.get_input_details()
+    output_details = model.get_output_details()
 
-    # Perform inference
-    model.set_tensor(input_details[0]['index'], batch)
-    model.invoke()
-    batch_outputs = model.get_tensor(output_details[-1]['index'])
+    while True:
+        # Capture a frame from the webcam
+        ret, cap_frame = cap.read()
+        cap_frame = cv2.resize(cap_frame, INPUT_SHAPE_DICT[model_version])
+        batch = np.expand_dims(cap_frame, axis=0).astype(np.int8)
 
-    # Extract coordinates
-    coordinates = list()
-    for idx in range(KEY_POINTS):
-        frame = batch_outputs[0][:, :, idx]
-        if np.amax(frame) < confidence: continue
-        row, col = np.unravel_index(np.argmax(frame, axis=None), frame.shape)
-        coordinates.append((row, col))
-        cv2.circle(cap_frame, (col, row), 5, (0, 0, 255), -1)
+        # Perform inference
+        model.set_tensor(input_details[0]['index'], batch)
+        model.invoke()
+        batch_outputs = model.get_tensor(output_details[-1]['index'])
 
-    # Display the frame
-    cv2.imshow("EfficientPose", cap_frame)
+        # Extract coordinates
+        coordinates = list()
+        for idx in range(KEY_POINTS):
+            frame = batch_outputs[0][:, :, idx]
+            if np.amax(frame) < CONFIDENCE_DICT[model_version]: continue
+            row, col = np.unravel_index(np.argmax(frame, axis=None), frame.shape)
+            coordinates.append((row, col))
+            cv2.circle(cap_frame, (col, row), 5, (0, 0, 255), -1)
 
-    # Press 'q' to quit
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
+        # Display the frame
+        cv2.imshow("EfficientPose", cap_frame)
 
-# Release the webcam
-cap.release()
-cv2.destroyAllWindows()
+        # Press 'q' to quit
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model_version", type=str, default="RT_LITE", help="The version of the EfficientPose to use -> RT_LITE (default) / I_LITE / II_LITE")
+    args = parser.parse_args()
+    if args.model_version not in INPUT_SHAPE_DICT.keys():
+        parser.print_help()
+        exit(-1)
+
+    print("\n{}\nRunning EfficinetPose{}\n{}\n".format("*"*50, args.model_version, "*"*50))
+    print("Press \'q\' to exit...\n")
+
+    run_inference(args.model_version)
+
+    # Release the webcam
+    cap.release()
+    cv2.destroyAllWindows()

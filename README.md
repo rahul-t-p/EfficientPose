@@ -14,7 +14,16 @@ Signle person pose estimation using webcam.
 ```pip3 install -r requirements.txt```
 
 ## Usage
-```python3 demo_webcam.py```
+```
+usage: demo_webcam.py [-h] [--model_version MODEL_VERSION]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --model_version MODEL_VERSION
+                        The version of the EfficientPose to use -> RT_LITE (default) / I_LITE / II_LITE
+```
+Example usage;
+```python3 demo_webcam.py --model_version I_LITE```
 
 ## References
 1. https://github.com/daniegr/EfficientPose
