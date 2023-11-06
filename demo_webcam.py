@@ -20,6 +20,9 @@ def run_inference(model_version: str):
     input_details = model.get_input_details()
     output_details = model.get_output_details()
 
+    # Get width and height of webcam input
+    cap_height, cap_width = cap.read()[1].shape[:2]
+
     while True:
         # Capture a frame from the webcam
         ret, cap_frame = cap.read()
@@ -32,15 +35,14 @@ def run_inference(model_version: str):
         batch_outputs = model.get_tensor(output_details[-1]['index'])
 
         # Extract coordinates
-        coordinates = list()
         for idx in range(KEY_POINTS):
             frame = batch_outputs[0][:, :, idx]
             if np.amax(frame) < CONFIDENCE_DICT[model_version]: continue
-            row, col = np.unravel_index(np.argmax(frame, axis=None), frame.shape)
-            coordinates.append((row, col))
-            cv2.circle(cap_frame, (col, row), 5, (0, 0, 255), -1)
+            x, y = np.unravel_index(np.argmax(frame, axis=None), frame.shape)
+            cv2.circle(cap_frame, (y, x), 3, (0, 0, 255), -1)
 
         # Display the frame
+        cap_frame = cv2.resize(cap_frame, (cap_width, cap_height))
         cv2.imshow("EfficientPose", cap_frame)
 
         # Press 'q' to quit
